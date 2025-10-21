@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNC Digital Twin Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+        
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .kpi-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .kpi-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #3498db;
+            margin: 10px 0;
+        }
+        
+        .kpi-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+        
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 20px;
+        }
+        
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .status {
+            background: #2ecc71;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2em;
+        }
+        
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏭 CNC Digital Twin Dashboard</h1>
+            <p>Real-time Monitoring & Predictive Analytics</p>
+            <div class="status" id="status">● OPERATIONAL</div>
+        </div>
+        
+        <div class="loading" id="loading">Loading data...</div>
+        
+        <div id="content" style="display:none;">
+            <div class="kpi-grid" id="kpis"></div>
+            <div class="chart-grid" id="charts"></div>
+        </div>
+    </div>
+    
+    <script>
+        async function loadData() {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('loading').innerHTML = 
+                        `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                // Hide loading, show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+                
+                // Display KPIs
+                displayKPIs(data.kpis);
+                
+                // Display charts
+                displayCharts(data.charts);
+                
+            } catch (error) {
+                document.getElementById('loading').innerHTML = 
+                    `<div class="error">Error loading data: ${error.message}</div>`;
+            }
+        }
+        
+        function displayKPIs(kpis) {
+            const kpiContainer = document.getElementById('kpis');
+            
+            const kpiConfig = [
+                { label: 'Total Records', value: kpis.total_records, suffix: '' },
+                { label: 'Avg RPM', value: Math.round(kpis.avg_spindle_rpm), suffix: '' },
+                { label: 'Max Temp', value: kpis.max_temp.toFixed(1), suffix: '°C' },
+                { label: 'Avg Power', value: kpis.avg_power.toFixed(1), suffix: 'kW' },
+                { label: 'Chatter Events', value: kpis.chatter_events, suffix: '' },
+                { label: 'Avg Roughness', value: kpis.avg_roughness.toFixed(3), suffix: 'µm' },
+                { label: 'Avg RUL', value: kpis.avg_rul.toFixed(1), suffix: 'min' },
+                { label: 'Machines', value: kpis.machines, suffix: '' }
+            ];
+            
+            kpiContainer.innerHTML = kpiConfig.map(kpi => `
+                <div class="kpi-card">
+                    <div class="kpi-label">${kpi.label}</div>
+                    <div class="kpi-value">${kpi.value}${kpi.suffix}</div>
+                </div>
+            `).join('');
+        }
+        
+        function displayCharts(charts) {
+            const chartsContainer = document.getElementById('charts');
+            chartsContainer.innerHTML = `
+                <div class="chart-card"><div id="chart-spindle"></div></div>
+                <div class="chart-card"><div id="chart-temp"></div></div>
+                <div class="chart-card"><div id="chart-vib"></div></div>
+                <div class="chart-card"><div id="chart-quality"></div></div>
+            `;
+            
+            Plotly.newPlot('chart-spindle', JSON.parse(charts.spindle).data, 
+                JSON.parse(charts.spindle).layout);
+            Plotly.newPlot('chart-temp', JSON.parse(charts.temperature).data, 
+                JSON.parse(charts.temperature).layout);
+            Plotly.newPlot('chart-vib', JSON.parse(charts.vibration).data, 
+                JSON.parse(charts.vibration).layout);
+            Plotly.newPlot('chart-quality', JSON.parse(charts.quality).data, 
+                JSON.parse(charts.quality).layout);
+        }
+        
+        // Load data on page load
+        loadData();
+        
+        // Auto-refresh every 5 seconds
+        setInterval(loadData, 5000);
+    </script>
+</body>
+</html>

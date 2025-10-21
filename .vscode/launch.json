@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Debug mqtt_publisher",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/edge/mqtt_publisher.py",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Python: Debug ingest",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/ingest/mqtt_to_influx.py",
+      "console": "integratedTerminal"
+    }
+  ]
+}

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNC Digital Twin - 3D Simulation</title>
+    
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- Plotly for charts -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+        
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: 100vh;
+        }
+        
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            text-align: center;
+            grid-column: 1 / -1;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .status-badge {
+            background: #2ecc71;
+            padding: 8px 20px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 10px;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .simulation-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            flex: 1;
+            min-height: 500px;
+        }
+        
+        #simulation-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .sim-title {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            color: #3498db;
+            font-weight: bold;
+        }
+        
+        .sim-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .sim-button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+        
+        .sim-button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+        }
+        
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        
+        .kpi-card {
+            background: rgba(255,255,255,0.08);
+            padding: 18px;
+            border-radius: 12px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        
+        .kpi-value {
+            font-size: 2em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #3498db 0%, #2ecc71 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 8px 0;
+        }
+        
+        .kpi-label {
+            font-size: 0.85em;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .chart-card {
+            background: rgba(255,255,255,0.08);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.3em;
+            color: #3498db;
+        }
+        
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        
+        .error {
+            background: rgba(231, 76, 60, 0.2);
+            border: 2px solid #e74c3c;
+            color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+        
+        .info-panel {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            color: #95a5a6;
+        }
+        
+        .info-value {
+            color: #3498db;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 1200px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .kpi-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Header spanning both columns -->
+        <div class="header">
+            <h1>🏭 CNC Digital Twin Dashboard</h1>
+            <p>Real-time 3D Simulation & Predictive Analytics</p>
+            <div class="status-badge" id="status">● OPERATIONAL</div>
+        </div>
+        
+        <!-- Left Panel - 3D Simulation -->
+        <div class="left-panel">
+            <div class="simulation-container">
+                <div class="sim-title">🎮 Live 3D Machine Simulation</div>
+                <div id="simulation-container"></div>
+                <div class="sim-controls">
+                    <button class="sim-button" onclick="resetCamera()">🎥 Reset View</button>
+                    <button class="sim-button" onclick="toggleAnimation()">⏯️ Pause/Play</button>
+                </div>
+                <div class="info-panel" id="sim-info">
+                    <div class="info-row">
+                        <span class="info-label">X Position:</span>
+                        <span class="info-value" id="pos-x">0.0 mm</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Y Position:</span>
+                        <span class="info-value" id="pos-y">0.0 mm</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Z Position:</span>
+                        <span class="info-value" id="pos-z">0.0 mm</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Spindle RPM:</span>
+                        <span class="info-value" id="spindle-rpm">0 RPM</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Panel - Analytics -->
+        <div class="right-panel">
+            <div class="loading" id="loading">Loading dashboard data</div>
+            
+            <div id="content" style="display:none;">
+                <!-- KPIs -->
+                <div class="kpi-grid" id="kpis"></div>
+                
+                <!-- Charts -->
+                <div class="chart-card">
+                    <div id="chart-spindle"></div>
+                </div>
+                <div class="chart-card">
+                    <div id="chart-temp"></div>
+                </div>
+                <div class="chart-card">
+                    <div id="chart-vib"></div>
+                </div>
+                <div class="chart-card">
+                    <div id="chart-quality"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Load CNC Simulation Script -->
+    <script src="/static/js/cnc_simulation.js"></script>
+    
+    <script>
+        let animationPaused = false;
+        let currentData = [];
+        
+        // Initialize 3D simulation
+        window.addEventListener('load', () => {
+            initSimulation();
+            loadData();
+        });
+        
+        async function loadData() {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('loading').innerHTML = 
+                        `<div class="error">❌ ${data.error}<br><br>Please run: <code>python run.py</code></div>`;
+                    return;
+                }
+                
+                // Hide loading, show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+                
+                // Store data for simulation
+                if (data.raw_data && data.raw_data.length > 0) {
+                    currentData = data.raw_data;
+                    
+                    // Update 3D simulation
+                    if (cncSim && !animationPaused) {
+                        updateSimulation(currentData);
+                        updateSimInfo(currentData[0]);
+                    }
+                }
+                
+                // Display KPIs
+                displayKPIs(data.kpis);
+                
+                // Display charts
+                displayCharts(data.charts);
+                
+            } catch (error) {
+                document.getElementById('loading').innerHTML = 
+                    `<div class="error">❌ Error loading data: ${error.message}</div>`;
+            }
+        }
+        
+        function updateSimInfo(data) {
+            if (!data) return;
+            document.getElementById('pos-x').textContent = `${data.axis_x_pos?.toFixed(2) || 0} mm`;
+            document.getElementById('pos-y').textContent = `${data.axis_y_pos?.toFixed(2) || 0} mm`;
+            document.getElementById('pos-z').textContent = `${data.axis_z_pos?.toFixed(2) || 0} mm`;
+            document.getElementById('spindle-rpm').textContent = `${data.spindle_speed_rpm || 0} RPM`;
+        }
+        
+        function displayKPIs(kpis) {
+            const kpiContainer = document.getElementById('kpis');
+            
+            const kpiConfig = [
+                { label: 'Total Records', value: kpis.total_records, suffix: '' },
+                { label: 'Avg RPM', value: Math.round(kpis.avg_spindle_rpm), suffix: '' },
+                { label: 'Max Temp', value: kpis.max_temp.toFixed(1), suffix: '°C' },
+                { label: 'Avg Power', value: kpis.avg_power.toFixed(1), suffix: 'kW' },
+                { label: 'Chatter Events', value: kpis.chatter_events, suffix: '' },
+                { label: 'Avg Roughness', value: kpis.avg_roughness.toFixed(3), suffix: 'µm' },
+                { label: 'Avg RUL', value: kpis.avg_rul.toFixed(1), suffix: 'min' },
+                { label: 'Machines', value: kpis.machines, suffix: '' }
+            ];
+            
+            kpiContainer.innerHTML = kpiConfig.map(kpi => `
+                <div class="kpi-card">
+                    <div class="kpi-label">${kpi.label}</div>
+                    <div class="kpi-value">${kpi.value}${kpi.suffix}</div>
+                </div>
+            `).join('');
+        }
+        
+        function displayCharts(charts) {
+            const chartLayout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#ffffff' },
+                margin: { t: 40, r: 20, b: 40, l: 50 }
+            };
+            
+            Plotly.newPlot('chart-spindle', JSON.parse(charts.spindle).data, 
+                {...JSON.parse(charts.spindle).layout, ...chartLayout});
+            Plotly.newPlot('chart-temp', JSON.parse(charts.temperature).data, 
+                {...JSON.parse(charts.temperature).layout, ...chartLayout});
+            Plotly.newPlot('chart-vib', JSON.parse(charts.vibration).data, 
+                {...JSON.parse(charts.vibration).layout, ...chartLayout});
+            Plotly.newPlot('chart-quality', JSON.parse(charts.quality).data, 
+                {...JSON.parse(charts.quality).layout, ...chartLayout});
+        }
+        
+        function resetCamera() {
+            if (cncSim) {
+                cncSim.camera.position.set(30, 30, 30);
+                cncSim.camera.lookAt(0, 0, 0);
+                cncSim.controls.reset();
+            }
+        }
+        
+        function toggleAnimation() {
+            animationPaused = !animationPaused;
+        }
+        
+        // Auto-refresh every 5 seconds
+        setInterval(loadData, 5000);
+    </script>
+</body>
+</html>
